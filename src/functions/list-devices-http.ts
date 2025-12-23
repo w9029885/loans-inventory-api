@@ -4,8 +4,8 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from '@azure/functions';
-import { getInventoryItemRepo } from '../config/appServices';
-import { listInventoryItems } from '../app/list-inventory-items';
+import { getDeviceRepo } from '../config/appServices';
+import { listDevices } from '../app/list-devices';
 
 // Unified error response shape
 const errorResponse = (
@@ -19,20 +19,20 @@ const errorResponse = (
   },
 });
 
-// Serialize domain items to plain JSON (Dates -> ISO strings)
-const serializeItems = (items: any[]) =>
-  items.map((i) => ({
-    id: i.id,
-    name: i.name,
-    description: i.description,
-    status: i.status,
+// Serialize domain devices to plain JSON (Dates -> ISO strings)
+const serializeDevices = (devices: any[]) =>
+  devices.map((d) => ({
+    id: d.id,
+    name: d.name,
+    description: d.description,
+    count: d.count,
     updatedAt:
-      i.updatedAt instanceof Date ? i.updatedAt.toISOString() : i.updatedAt,
+      d.updatedAt instanceof Date ? d.updatedAt.toISOString() : d.updatedAt,
   }));
 
-app.http('list-inventory-items-http', {
+app.http('list-devices-http', {
   methods: ['GET'],
-  route: 'inventory-items',
+  route: 'devices',
   authLevel: 'anonymous',
   handler: async (
     request: HttpRequest,
@@ -62,18 +62,20 @@ app.http('list-inventory-items-http', {
         }
       }
 
-      const repo = getInventoryItemRepo();
-      const items = await listInventoryItems({ inventoryItemRepo: repo });
-      const sliced = typeof limit === 'number' ? items.slice(0, limit) : items;
+      const repo = getDeviceRepo();
+      const devices = await listDevices({ deviceRepo: repo });
+      const sliced =
+        typeof limit === 'number' ? devices.slice(0, limit) : devices;
+
       return {
         status: 200,
         jsonBody: {
-          data: serializeItems(sliced),
+          data: serializeDevices(sliced),
           count: sliced.length,
         },
       };
     } catch (err: any) {
-      context.error('Unhandled error in list-inventory-items-http', err);
+      context.error('Unhandled error in list-devices-http', err);
       return errorResponse(
         500,
         'internal_error',

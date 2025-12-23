@@ -1,22 +1,19 @@
-import {
-  createInventoryItem,
-  InventoryItem,
-  InventoryItemStatus,
-} from '../domain/inventory-item';
-import { InventoryItemRepo } from '../domain/inventory-item-repo';
+import { createDevice, Device } from '../domain/device';
+import { DeviceRepo } from '../domain/device-repo';
 
-export type CreateInventoryItemDeps = {
-  inventoryItemRepo: InventoryItemRepo;
+export type CreateDeviceDeps = {
+  deviceRepo: DeviceRepo;
   /** Optional id generator for testability */
   generateId?: () => string;
   /** Optional clock for testability */
   now?: () => Date;
 };
 
-export type CreateInventoryItemCommand = {
+export type CreateDeviceCommand = {
   name: string;
   description: string;
-  status?: InventoryItemStatus;
+  /** Total number of devices of this model in the pool. Defaults to 1. */
+  count?: number;
   /**
    * Optional explicit id. If omitted, an id will be generated.
    * Callers should ensure uniqueness if they provide this.
@@ -30,24 +27,24 @@ const defaultId = (): string => {
     .replace(/[-:TZ\.]/g, '')
     .slice(0, 14); // yyyyMMddHHmmss
   const rand = Math.random().toString(36).slice(2, 8);
-  return `item-${ts}-${rand}`;
+  return `device-${ts}-${rand}`;
 };
 
-export const createInventoryItemUseCase = async (
-  deps: CreateInventoryItemDeps,
-  cmd: CreateInventoryItemCommand
-): Promise<InventoryItem> => {
+export const createDeviceUseCase = async (
+  deps: CreateDeviceDeps,
+  cmd: CreateDeviceCommand
+): Promise<Device> => {
   const id = cmd.id || deps.generateId?.() || defaultId();
   const now = deps.now?.() || new Date();
-  const status: InventoryItemStatus = cmd.status || 'available';
+  const count = cmd.count ?? 1;
 
-  const entity = createInventoryItem({
+  const entity = createDevice({
     id,
     name: cmd.name,
     description: cmd.description,
-    status,
+    count,
     updatedAt: now,
   });
 
-  return deps.inventoryItemRepo.save(entity);
+  return deps.deviceRepo.save(entity);
 };

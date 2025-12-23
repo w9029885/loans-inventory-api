@@ -4,9 +4,8 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from '@azure/functions';
-import { getInventoryItemRepo } from '../config/appServices';
-import { createInventoryItemUseCase } from '../app/create-inventory-item';
-import { InventoryItemStatus } from '../domain/inventory-item';
+import { getDeviceRepo } from '../config/appServices';
+import { createDeviceUseCase } from '../app/create-device';
 
 const errorResponse = (
   status: number,
@@ -19,21 +18,18 @@ const errorResponse = (
   },
 });
 
-const serializeItem = (i: any) => ({
-  id: i.id,
-  name: i.name,
-  description: i.description,
-  status: i.status,
+const serializeDevice = (d: any) => ({
+  id: d.id,
+  name: d.name,
+  description: d.description,
+  count: d.count,
   updatedAt:
-    i.updatedAt instanceof Date ? i.updatedAt.toISOString() : i.updatedAt,
+    d.updatedAt instanceof Date ? d.updatedAt.toISOString() : d.updatedAt,
 });
 
-const isValidStatus = (s: any): s is InventoryItemStatus =>
-  s === 'available' || s === 'reserved' || s === 'loaned';
-
-app.http('create-inventory-item-http', {
+app.http('create-device-http', {
   methods: ['POST'],
-  route: 'inventory-items',
+  route: 'devices',
   authLevel: 'anonymous',
   handler: async (
     request: HttpRequest,
@@ -61,7 +57,7 @@ app.http('create-inventory-item-http', {
 
       const name = body?.name;
       const description = body?.description;
-      const status = body?.status as InventoryItemStatus | undefined;
+      const count = body?.count as number | undefined;
       const id = body?.id as string | undefined;
 
       if (!name || typeof name !== 'string' || name.trim() === '') {
@@ -82,15 +78,24 @@ app.http('create-inventory-item-http', {
           'description must be a non-empty string'
         );
       }
-      if (status !== undefined && !isValidStatus(status)) {
-        return errorResponse(
-          400,
-          'invalid_status',
-          'status must be one of: available, reserved, loaned'
-        );
+      if (count !== undefined) {
+        if (!Number.isFinite(count) || count < 0) {
+          return errorResponse(
+            400,
+            'invalid_count',
+            'count must be a number greater than or equal to 0'
+          );
+        }
+        if (!Number.isInteger(count)) {
+          return errorResponse(
+            400,
+            'invalid_count',
+            'count must be an integer'
+          );
+        }
       }
 
-      const repo = getInventoryItemRepo();
+      const repo = getDeviceRepo();
 
       if (id && (typeof id !== 'string' || id.trim() === '')) {
         return errorResponse(
@@ -105,25 +110,25 @@ app.http('create-inventory-item-http', {
         if (existing) {
           return errorResponse(
             409,
-            'item_exists',
-            'An inventory item with this id already exists'
+            'device_exists',
+            'A device with this id already exists'
           );
         }
       }
 
-      const created = await createInventoryItemUseCase(
-        { inventoryItemRepo: repo },
-        { id, name, description, status }
+      const created = await createDeviceUseCase(
+        { deviceRepo: repo },
+        { id, name, description, count }
       );
 
       return {
         status: 201,
         jsonBody: {
-          data: serializeItem(created),
+          data: serializeDevice(created),
         },
       };
     } catch (err: any) {
-      context.error('Unhandled error in create-inventory-item-http', err);
+      context.error('Unhandled error in create-device-http', err);
       return errorResponse(
         500,
         'internal_error',
