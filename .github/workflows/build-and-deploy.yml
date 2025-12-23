@@ -68,6 +68,6 @@ jobs:
       - name: Deploy to Azure Function App
         uses: azure/functions-action@v1
         with:
-          app-name: 'inventory-test-ao01-func' # replace with your Function App name
+          app-name: 'loans-dev-ao01-func' # replace with your Function App name
           package: package
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
