@@ -73,3 +73,5 @@ export const createDevice = (params: CreateDeviceParams): Device => {
     updatedAt: params.updatedAt,
   };
 };
+
+// Comment
