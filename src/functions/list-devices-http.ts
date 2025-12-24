@@ -4,7 +4,7 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from '@azure/functions';
-import { getDeviceRepo } from '../config/appServices';
+import { getDeviceRepo, getOAuth2Validator, resolveAuthContext } from '../config/appServices';
 import { listDevices } from '../app/list-devices';
 
 // Unified error response shape
@@ -20,12 +20,12 @@ const errorResponse = (
 });
 
 // Serialize domain devices to plain JSON (Dates -> ISO strings)
-const serializeDevices = (devices: any[]) =>
+const serializeDevices = (devices: any[], includeCounts: boolean) =>
   devices.map((d) => ({
     id: d.id,
     name: d.name,
     description: d.description,
-    count: d.count,
+    count: includeCounts ? d.count : undefined,
     updatedAt:
       d.updatedAt instanceof Date ? d.updatedAt.toISOString() : d.updatedAt,
   }));
@@ -62,6 +62,15 @@ app.http('list-devices-http', {
         }
       }
 
+      const authContext = await resolveAuthContext(request);
+      const validator = getOAuth2Validator();
+      const canSeeCounts = validator
+        ? validator.hasScope(authContext, 'read:devices') ||
+          validator.hasScope(authContext, 'write:devices') ||
+          validator.hasRole(authContext, 'student') ||
+          validator.hasRole(authContext, 'staff')
+        : authContext.authenticated;
+
       const repo = getDeviceRepo();
       const devices = await listDevices({ deviceRepo: repo });
       const sliced =
@@ -70,7 +79,7 @@ app.http('list-devices-http', {
       return {
         status: 200,
         jsonBody: {
-          data: serializeDevices(sliced),
+          data: serializeDevices(sliced, canSeeCounts),
           count: sliced.length,
         },
       };

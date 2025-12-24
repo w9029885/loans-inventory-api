@@ -4,7 +4,7 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from '@azure/functions';
-import { getDeviceRepo } from '../config/appServices';
+import { getDeviceRepo, getOAuth2Validator, resolveAuthContext } from '../config/appServices';
 import { updateDeviceUseCase } from '../app/update-device';
 
 const errorResponse = (
@@ -36,6 +36,20 @@ app.http('update-device-http', {
     context: InvocationContext
   ): Promise<HttpResponseInit> => {
     try {
+      const authContext = await resolveAuthContext(request);
+      const validator = getOAuth2Validator();
+      const canWrite = validator
+        ? validator.hasScope(authContext, 'write:devices') ||
+          validator.hasRole(authContext, 'staff')
+        : true;
+
+      if (validator && !authContext.authenticated) {
+        return errorResponse(401, 'unauthorized', 'Sign in is required');
+      }
+      if (validator && !canWrite) {
+        return errorResponse(403, 'forbidden', 'Staff access is required');
+      }
+
       const id = (request as any)?.params?.id as string | undefined;
       if (!id || typeof id !== 'string' || id.trim() === '') {
         return errorResponse(

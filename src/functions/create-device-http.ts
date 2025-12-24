@@ -4,7 +4,7 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from '@azure/functions';
-import { getDeviceRepo } from '../config/appServices';
+import { getDeviceRepo, getOAuth2Validator, resolveAuthContext } from '../config/appServices';
 import { createDeviceUseCase } from '../app/create-device';
 
 const errorResponse = (
@@ -42,6 +42,20 @@ app.http('create-device-http', {
           'method_not_allowed',
           'Only POST is supported'
         );
+      }
+
+      const authContext = await resolveAuthContext(request);
+      const validator = getOAuth2Validator();
+      const canWrite = validator
+        ? validator.hasScope(authContext, 'write:devices') ||
+          validator.hasRole(authContext, 'staff')
+        : true;
+
+      if (validator && !authContext.authenticated) {
+        return errorResponse(401, 'unauthorized', 'Sign in is required');
+      }
+      if (validator && !canWrite) {
+        return errorResponse(403, 'forbidden', 'Staff access is required');
       }
 
       let body: any;

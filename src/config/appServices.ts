@@ -1,5 +1,8 @@
 import { CosmosDeviceRepo } from '../infra/cosmos-device-repo';
 import { DeviceRepo } from '../domain/device-repo';
+import { OAuth2Validator } from '../infra/oauth2-validator';
+import type { AuthContext } from '../app/auth-context';
+import type { HttpRequest } from '@azure/functions';
 
 // Read configuration from environment variables
 // Required (unless alternative provided):
@@ -15,6 +18,7 @@ const DEFAULT_CONTAINER_ID = 'devices';
 const PARTITION_KEY = process.env.COSMOS_PARTITION_KEY || 'id';
 
 let deviceRepoSingleton: DeviceRepo | null = null;
+let oauth2ValidatorSingleton: OAuth2Validator | null = null;
 
 export const getDeviceRepo = (): DeviceRepo => {
   if (deviceRepoSingleton) return deviceRepoSingleton;
@@ -49,4 +53,32 @@ export const getDeviceRepo = (): DeviceRepo => {
     key: key!,
   });
   return deviceRepoSingleton;
+};
+
+export const getOAuth2Validator = (): OAuth2Validator | null => {
+  if (oauth2ValidatorSingleton) return oauth2ValidatorSingleton;
+
+  const jwksUri = process.env.OAUTH2_JWKS_URI;
+  const issuer = process.env.OAUTH2_ISSUER;
+  const audience = process.env.OAUTH2_AUDIENCE;
+  const rolesClaim = process.env.OAUTH2_ROLES_CLAIM;
+
+  if (jwksUri && issuer && audience) {
+    oauth2ValidatorSingleton = new OAuth2Validator({
+      jwksUri,
+      issuer,
+      audience,
+      rolesClaim,
+    });
+  }
+
+  return oauth2ValidatorSingleton;
+};
+
+export const resolveAuthContext = async (
+  request: HttpRequest,
+): Promise<AuthContext> => {
+  const validator = getOAuth2Validator();
+  if (!validator) return { authenticated: false, scopes: [], roles: [] };
+  return validator.validate(request);
 };
