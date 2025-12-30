@@ -30,6 +30,9 @@ jobs:
       - name: Build (into ./dist)
         run: npm run build
 
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+
       - name: Publish function app to package folder
         run: |
           # make an empty package folder
@@ -68,6 +71,6 @@ jobs:
       - name: Deploy to Azure Function App
         uses: azure/functions-action@v1
         with:
-          app-name: 'devices-dev-ao01-func' # replace with your Function App name
+          app-name: 'devices-dev-ao01-func' # My functionapp name
           package: package
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
