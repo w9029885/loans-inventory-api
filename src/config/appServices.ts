@@ -1,11 +1,14 @@
 import { CosmosDeviceRepo } from '../infra/cosmos-device-repo';
+import { FakeDeviceRepo } from '../infra/fake-device-repo';
 import { DeviceRepo } from '../domain/device-repo';
 import { OAuth2Validator } from '../infra/oauth2-validator';
 import type { AuthContext } from '../app/auth-context';
 import type { HttpRequest } from '@azure/functions';
+import { seedDevices } from '../seed/data';
 
 // Read configuration from environment variables
-// Required (unless alternative provided):
+// Set USE_FAKE_REPO=true to use in-memory fake repo for local development
+// Otherwise, Cosmos configuration is required:
 // - COSMOS_ENDPOINT (or COSMOS_ACCOUNT_NAME)
 // - COSMOS_KEY
 //
@@ -23,6 +26,16 @@ let oauth2ValidatorSingleton: OAuth2Validator | null = null;
 export const getDeviceRepo = (): DeviceRepo => {
   if (deviceRepoSingleton) return deviceRepoSingleton;
 
+  // Check if we should use the fake repo for local development
+  const useFakeRepo = process.env.USE_FAKE_REPO === 'true';
+
+  if (useFakeRepo) {
+    console.log('Using FakeDeviceRepo with seed data for local development');
+    deviceRepoSingleton = new FakeDeviceRepo(seedDevices);
+    return deviceRepoSingleton;
+  }
+
+  // Otherwise use Cosmos
   const accountName = process.env.COSMOS_ACCOUNT_NAME;
   const endpoint =
     process.env.COSMOS_ENDPOINT ||
@@ -41,7 +54,7 @@ export const getDeviceRepo = (): DeviceRepo => {
     throw new Error(
       `Missing required Cosmos configuration from environment: ${missing.join(
         ', '
-      )}`
+      )}. Set USE_FAKE_REPO=true to use fake repo for local development.`
     );
   }
 

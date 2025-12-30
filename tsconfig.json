@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "target": "es6",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "esModuleInterop": true,
+    "target": "es2023",
     "outDir": "dist",
     "rootDir": ".",
     "sourceMap": true,
     "strict": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.spec.ts"]
 }
