@@ -6,6 +6,7 @@ import {
 } from '@azure/functions';
 import { getDeviceRepo, getOAuth2Validator, resolveAuthContext } from '../config/appServices';
 import { createDeviceUseCase } from '../app/create-device';
+import { createLogger } from '../app/logger';
 
 const errorResponse = (
   status: number,
@@ -35,8 +36,17 @@ app.http('create-device-http', {
     request: HttpRequest,
     context: InvocationContext
   ): Promise<HttpResponseInit> => {
+    const logger = createLogger(context);
+    const correlationId =
+      request.headers.get('x-correlation-id') ||
+      (context.traceContext?.traceparent as string | undefined);
+
     try {
       if (request.method !== 'POST') {
+        logger.warn('Rejected non-POST method for create device', {
+          method: request.method,
+          correlationId,
+        });
         return errorResponse(
           405,
           'method_not_allowed',
@@ -51,10 +61,20 @@ app.http('create-device-http', {
           validator.hasRole(authContext, 'staff')
         : true;
 
+      logger.info('Create device request received', {
+        correlationId,
+        subject: authContext.subject,
+        roles: authContext.roles,
+        scopes: authContext.scopes,
+        canWrite,
+      });
+
       if (validator && !authContext.authenticated) {
+        logger.warn('Unauthenticated create-device attempt', { correlationId });
         return errorResponse(401, 'unauthorized', 'Sign in is required');
       }
       if (validator && !canWrite) {
+        logger.warn('Forbidden create-device attempt', { correlationId });
         return errorResponse(403, 'forbidden', 'Staff access is required');
       }
 
@@ -62,6 +82,7 @@ app.http('create-device-http', {
       try {
         body = await request.json();
       } catch {
+        logger.warn('Invalid JSON body for create device', { correlationId });
         return errorResponse(
           400,
           'invalid_json',
@@ -75,6 +96,7 @@ app.http('create-device-http', {
       const id = body?.id as string | undefined;
 
       if (!name || typeof name !== 'string' || name.trim() === '') {
+        logger.warn('Invalid name in create device', { correlationId });
         return errorResponse(
           400,
           'invalid_name',
@@ -86,6 +108,7 @@ app.http('create-device-http', {
         typeof description !== 'string' ||
         description.trim() === ''
       ) {
+        logger.warn('Invalid description in create device', { correlationId });
         return errorResponse(
           400,
           'invalid_description',
@@ -94,6 +117,10 @@ app.http('create-device-http', {
       }
       if (count !== undefined) {
         if (!Number.isFinite(count) || count < 0) {
+          logger.warn('Invalid count in create device', {
+            correlationId,
+            count,
+          });
           return errorResponse(
             400,
             'invalid_count',
@@ -112,6 +139,7 @@ app.http('create-device-http', {
       const repo = getDeviceRepo();
 
       if (id && (typeof id !== 'string' || id.trim() === '')) {
+        logger.warn('Invalid id supplied for create device', { correlationId });
         return errorResponse(
           400,
           'invalid_id',
@@ -122,6 +150,10 @@ app.http('create-device-http', {
       if (id) {
         const existing = await repo.getById(id);
         if (existing) {
+          logger.warn('Duplicate id detected on create device', {
+            correlationId,
+            id,
+          });
           return errorResponse(
             409,
             'device_exists',
@@ -135,6 +167,13 @@ app.http('create-device-http', {
         { id, name, description, count }
       );
 
+      logger.info('Device created', {
+        correlationId,
+        id: created.id,
+        name: created.name,
+        count: created.count,
+      });
+
       return {
         status: 201,
         jsonBody: {
@@ -142,7 +181,10 @@ app.http('create-device-http', {
         },
       };
     } catch (err: any) {
-      context.error('Unhandled error in create-device-http', err);
+      logger.error('Unhandled error in create-device-http', {
+        correlationId,
+        error: err?.message,
+      });
       return errorResponse(
         500,
         'internal_error',

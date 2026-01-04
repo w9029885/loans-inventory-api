@@ -6,6 +6,7 @@ import {
 } from '@azure/functions';
 import { getDeviceRepo, getOAuth2Validator, resolveAuthContext } from '../config/appServices';
 import { listDevices } from '../app/list-devices';
+import { createLogger } from '../app/logger';
 
 // Unified error response shape
 const errorResponse = (
@@ -38,9 +39,18 @@ app.http('list-devices-http', {
     request: HttpRequest,
     context: InvocationContext
   ): Promise<HttpResponseInit> => {
+    const logger = createLogger(context);
+    const correlationId =
+      request.headers.get('x-correlation-id') ||
+      (context.traceContext?.traceparent as string | undefined);
+
     try {
       // Basic method guard (should always be GET due to definition)
       if (request.method !== 'GET') {
+        logger.warn('Rejected non-GET method for list devices', {
+          method: request.method,
+          correlationId,
+        });
         return errorResponse(
           405,
           'method_not_allowed',
@@ -54,6 +64,7 @@ app.http('list-devices-http', {
       if (limitRaw !== null) {
         limit = Number(limitRaw);
         if (!Number.isFinite(limit) || limit <= 0) {
+          logger.warn('Invalid limit provided', { limitRaw, correlationId });
           return errorResponse(
             400,
             'invalid_limit',
@@ -71,10 +82,25 @@ app.http('list-devices-http', {
           validator.hasRole(authContext, 'staff')
         : authContext.authenticated;
 
+      logger.info('Listing devices', {
+        correlationId,
+        subject: authContext.subject,
+        roles: authContext.roles,
+        scopes: authContext.scopes,
+        canSeeCounts,
+        limit,
+      });
+
       const repo = getDeviceRepo();
       const devices = await listDevices({ deviceRepo: repo });
       const sliced =
         typeof limit === 'number' ? devices.slice(0, limit) : devices;
+
+      logger.info('Devices listed successfully', {
+        correlationId,
+        returned: sliced.length,
+        total: devices.length,
+      });
 
       return {
         status: 200,
@@ -84,7 +110,10 @@ app.http('list-devices-http', {
         },
       };
     } catch (err: any) {
-      context.error('Unhandled error in list-devices-http', err);
+      logger.error('Unhandled error in list-devices-http', {
+        correlationId,
+        error: err?.message,
+      });
       return errorResponse(
         500,
         'internal_error',
