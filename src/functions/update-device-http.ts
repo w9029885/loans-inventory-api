@@ -39,7 +39,7 @@ app.http('update-device-http', {
     const logger = createLogger(context);
     const correlationId =
       request.headers.get('x-correlation-id') ||
-      (context.traceContext?.traceparent as string | undefined);
+      (context.traceContext?.traceParent as string | undefined);
 
     try {
       const authContext = await resolveAuthContext(request);
