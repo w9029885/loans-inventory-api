@@ -42,7 +42,12 @@ export class OAuth2Validator {
 
   async validate(request: HttpRequest): Promise<AuthContext> {
     const token = this.extractToken(request);
-    if (!token) return { authenticated: false, scopes: [], roles: [] };
+    if (!token) {
+      console.log('[OAuth2Validator] No token found in request');
+      return { authenticated: false, scopes: [], roles: [] };
+    }
+
+    console.log('[OAuth2Validator] Validating token, length:', token.length);
 
     try {
       const { payload } = await jwtVerify(token, this.jwks, {
@@ -50,20 +55,33 @@ export class OAuth2Validator {
         audience: this.audience,
       });
 
-      const scopes = this.normalizeStrings(payload.scope ?? (payload as any).permissions);
+      console.log('[OAuth2Validator] Token verified successfully');
+      console.log('[OAuth2Validator] Payload keys:', Object.keys(payload));
+      console.log('[OAuth2Validator] scope:', payload.scope);
+      console.log('[OAuth2Validator] permissions:', (payload as any).permissions);
+      console.log('[OAuth2Validator] rolesClaim:', this.rolesClaim, '-> value:', this.rolesClaim ? (payload as any)[this.rolesClaim] : 'N/A');
+
+      // Combine both scope (space-separated string) AND permissions (array) 
+      const scopeScopes = this.normalizeStrings(payload.scope);
+      const permissionScopes = this.normalizeStrings((payload as any).permissions);
+      const scopes = Array.from(new Set([...scopeScopes, ...permissionScopes]));
+      
       const rolesFromClaim = this.rolesClaim
         ? this.normalizeStrings((payload as any)[this.rolesClaim])
         : [];
       const fallbackRoles = this.normalizeStrings((payload as any).roles);
 
-      return {
+      const result = {
         authenticated: true,
         scopes,
         roles: Array.from(new Set([...rolesFromClaim, ...fallbackRoles])),
         subject: typeof payload.sub === 'string' ? payload.sub : undefined,
       };
+
+      console.log('[OAuth2Validator] Auth context:', result);
+      return result;
     } catch (error) {
-      console.warn('Token validation failed:', (error as Error).message);
+      console.warn('[OAuth2Validator] Token validation failed:', (error as Error).message);
       return { authenticated: false, scopes: [], roles: [] };
     }
   }
