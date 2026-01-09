@@ -2,7 +2,7 @@ export type Device = {
   id: string;
   name: string;
   description: string;
-  count: number /** Total number of devices of this model in the pool. */;
+  count: number /** Available number of devices of this model in the pool. */;
   updatedAt: Date;
 };
 

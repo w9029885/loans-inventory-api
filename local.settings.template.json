@@ -1,0 +1,22 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "",
+    "USE_FAKE_REPO": "true",
+    "COSMOS_ENDPOINT": "",
+    "COSMOS_KEY": "",
+    "COSMOS_DATABASE_ID": "loans-db",
+    "COSMOS_CONTAINER_ID": "devices",
+    "COSMOS_EVENTS_CONTAINER_ID": "event-checkpoints",
+    "OAUTH2_JWKS_URI": "https://<your-tenant>/.well-known/jwks.json",
+    "OAUTH2_ISSUER": "https://<your-tenant>/",
+    "OAUTH2_AUDIENCE": "https://<your-api-identifier>",
+    "OAUTH2_ROLES_CLAIM": "https://loans.devices.ao01.com/roles"
+  },
+  "Host": {
+    "CORS": "http://localhost:5173",
+    "CORSCredentials": true,
+    "LocalHttpPort": 7071
+  }
+}

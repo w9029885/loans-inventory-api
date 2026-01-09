@@ -2,6 +2,9 @@ import { CosmosDeviceRepo } from '../infra/cosmos-device-repo';
 import { FakeDeviceRepo } from '../infra/fake-device-repo';
 import { DeviceRepo } from '../domain/device-repo';
 import { OAuth2Validator } from '../infra/oauth2-validator';
+import { CosmosProcessedEventRepo } from '../infra/cosmos-processed-event-repo';
+import { FakeProcessedEventRepo } from '../infra/fake-processed-event-repo';
+import { ProcessedEventRepo } from '../domain/processed-event-repo';
 import type { AuthContext } from '../app/auth-context';
 import type { HttpRequest } from '@azure/functions';
 import { seedDevices } from '../seed/data';
@@ -18,10 +21,12 @@ import { seedDevices } from '../seed/data';
 // - COSMOS_PARTITION_KEY (defaults to 'id')
 const DEFAULT_DATABASE_ID = 'loans-db';
 const DEFAULT_CONTAINER_ID = 'devices';
+const DEFAULT_EVENTS_CONTAINER_ID = 'event-checkpoints';
 const PARTITION_KEY = process.env.COSMOS_PARTITION_KEY || 'id';
 
 let deviceRepoSingleton: DeviceRepo | null = null;
 let oauth2ValidatorSingleton: OAuth2Validator | null = null;
+let processedEventRepoSingleton: ProcessedEventRepo | null = null;
 
 export const getDeviceRepo = (): DeviceRepo => {
   if (deviceRepoSingleton) return deviceRepoSingleton;
@@ -88,6 +93,49 @@ export const getOAuth2Validator = (): OAuth2Validator | null => {
   return oauth2ValidatorSingleton;
 };
 
+export const getProcessedEventRepo = (): ProcessedEventRepo => {
+  if (processedEventRepoSingleton) return processedEventRepoSingleton;
+
+  const useFakeRepo = process.env.USE_FAKE_REPO === 'true';
+  if (useFakeRepo) {
+    processedEventRepoSingleton = new FakeProcessedEventRepo();
+    return processedEventRepoSingleton;
+  }
+
+  const accountName = process.env.COSMOS_ACCOUNT_NAME;
+  const endpoint =
+    process.env.COSMOS_ENDPOINT ||
+    (accountName
+      ? `https://${accountName}.documents.azure.com:443/`
+      : undefined);
+  const databaseId = process.env.COSMOS_DATABASE_ID || DEFAULT_DATABASE_ID;
+  const containerId =
+    process.env.COSMOS_EVENTS_CONTAINER_ID || DEFAULT_EVENTS_CONTAINER_ID;
+  const key = process.env.COSMOS_KEY;
+
+  const missing: string[] = [];
+  if (!endpoint) missing.push('COSMOS_ENDPOINT');
+  if (!key) missing.push('COSMOS_KEY');
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required Cosmos configuration from environment: ${missing.join(
+        ', '
+      )}. Set USE_FAKE_REPO=true to use fake repo for local development.`
+    );
+  }
+
+  processedEventRepoSingleton = new CosmosProcessedEventRepo({
+    endpoint: endpoint!,
+    databaseId: databaseId!,
+    containerId: containerId!,
+    partitionKey: 'id',
+    key: key!,
+  });
+
+  return processedEventRepoSingleton;
+};
+
 export const resolveAuthContext = async (
   request: HttpRequest,
 ): Promise<AuthContext> => {
@@ -95,3 +143,4 @@ export const resolveAuthContext = async (
   if (!validator) return { authenticated: false, scopes: [], roles: [] };
   return validator.validate(request);
 };
+
