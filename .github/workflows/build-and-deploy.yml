@@ -1,4 +1,4 @@
-name: Build and Deploy to Dev
+name: Build and Deploy
 
 on:
   push:
@@ -57,9 +57,10 @@ jobs:
           path: package
           retention-days: 1
 
-  deploy-to-test:
+  deploy-to-dev:
     needs: build-and-publish
     runs-on: ubuntu-latest
+    environment: dev
 
     steps:
       - name: Download package artefact
@@ -68,9 +69,29 @@ jobs:
           name: functionapp-package
           path: package
 
-      - name: Deploy to Azure Function App
+      - name: Deploy to Azure Function App (Dev)
         uses: azure/functions-action@v1
         with:
-          app-name: 'devices-dev-ao01-func' # My functionapp name
+          app-name: 'devices-dev-ao01-func'
+          package: package
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+  deploy-to-prod:
+    needs: deploy-to-dev
+    runs-on: ubuntu-latest
+    environment: prod
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Download package artefact
+        uses: actions/download-artifact@v4
+        with:
+          name: functionapp-package
+          path: package
+
+      - name: Deploy to Azure Function App (Production)
+        uses: azure/functions-action@v1
+        with:
+          app-name: 'devices-prod-ao01-func'
           package: package
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
